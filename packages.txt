@@ -1,0 +1,7 @@
+# System packages for Streamlit Community Cloud
+# These are installed via apt-get
+
+ffmpeg
+libsm6
+libxext6
+libgl1
