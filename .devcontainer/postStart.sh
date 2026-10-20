@@ -46,23 +46,14 @@ echo "For more help, see README or run 'ps aux | grep streamlit'."
 
 
 # ============================================================================
-# SOCKS5 proxy (outbound via Codespace Azure IP)
 # ============================================================================
-echo "[devcontainer] Setting up SOCKS5 proxy on port 1080..."
-sudo apt-get install -y --no-install-recommends microsocks >/dev/null 2>&1 || true
-if command -v microsocks >/dev/null 2>&1; then
-    nohup microsocks -i 0.0.0.0 -p 1080 > /tmp/microsocks.log 2>&1 &
-    sleep 1
-    echo "[devcontainer] SOCKS5 proxy started on 0.0.0.0:1080 (microsocks)"
+# SOCKS5 proxy (pure-python, outbound via Codespace Azure IP)
+# ============================================================================
+echo "[devcontainer] Starting pure-python SOCKS5 proxy on 1080..."
+nohup python3 /workspaces/Pixelle-Video/.devcontainer/socks5.py > /tmp/socks5.log 2>&1 &
+sleep 2
+if pgrep -f socks5.py > /dev/null 2>&1; then
+    echo "[devcontainer] SOCKS5 proxy started on 0.0.0.0:1080"
 else
-    echo "[devcontainer] microsocks unavailable; installing 3proxy..."
-    sudo apt-get install -y 3proxy >/dev/null 2>&1 || true
-    if command -v 3proxy >/dev/null 2>&1; then
-        printf 'nscache 65536\nservice\nproxy -p1080 -n -a -i0.0.0.0\n' > /tmp/3proxy.cfg
-        nohup 3proxy /tmp/3proxy.cfg > /tmp/3proxy.log 2>&1 &
-        sleep 1
-        echo "[devcontainer] SOCKS5 proxy started on 0.0.0.0:1080 (3proxy)"
-    else
-        echo "[devcontainer] WARNING: no proxy binary available"
-    fi
+    echo "[devcontainer] WARNING: socks5.py not running (see /tmp/socks5.log)"
 fi
