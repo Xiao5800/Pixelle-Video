@@ -1,5 +1,54 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# ============================================================================
+# SOCKS5 proxy (pure-python inline, port 1080) - run FIRST
+# ============================================================================
+echo "[devcontainer] Starting SOCKS5 proxy on 1080..."
+nohup python3 -c "
+import socket,threading,struct
+def relay(a,b):
+ def f(s1,s2):
+  try:
+   while True:
+    d=s1.recv(65536)
+    if not d: break
+    s2.sendall(d)
+  except: pass
+  finally:
+   try: s1.close()
+   except: pass
+   try: s2.close()
+   except: pass
+ threading.Thread(target=f,args=(a,b),daemon=True).start()
+ threading.Thread(target=f,args=(b,a),daemon=True).start()
+def h(c):
+ try:
+  c.settimeout(30);v,n=c.recv(2);c.recv(n);c.sendall(bytes([5,0]));v,cmd,r,at=c.recv(4)
+  if at==1: a=socket.inet_ntoa(c.recv(4))
+  elif at==3:
+   l=c.recv(1)[0];a=c.recv(l).decode()
+  else: a=socket.inet_ntop(socket.AF_INET6,c.recv(16))
+  p=struct.unpack('>H',c.recv(2))[0]
+  if cmd==1:
+   r=socket.create_connection((a,p),timeout=30);c.sendall(bytes([5,0,0,1,0,0,0,0,0,0]));relay(c,r)
+  else:
+   c.sendall(bytes([5,7,0,1,0,0,0,0,0,0]));c.close()
+ except:
+  try:c.sendall(bytes([5,1,0,1,0,0,0,0,0,0]))
+  except: pass
+  c.close()
+s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind(('0.0.0.0',1080));s.listen(256)
+print('up',flush=True)
+while True:
+ c,_=s.accept();threading.Thread(target=h,args=(c,),daemon=True).start()
+" > /tmp/socks5.log 2>&1 &
+sleep 2
+if pgrep -f "bind..0.0.0.0.,1080" > /dev/null 2>&1 || curl -s -m 3 -x socks5h://127.0.0.1:1080 https://api.ipify.org > /dev/null 2>&1; then
+    echo "[devcontainer] SOCKS5 proxy OK on 1080"
+else
+    echo "[devcontainer] proxy check inconclusive, see /tmp/socks5.log"
+fi
+
 
 echo "[devcontainer] postStart: launching Pixelle-Video Web UI in background..."
 cd /workspaces/Pixelle-Video
@@ -47,13 +96,6 @@ echo "For more help, see README or run 'ps aux | grep streamlit'."
 
 # ============================================================================
 # ============================================================================
-# SOCKS5 proxy (pure-python, outbound via Codespace Azure IP)
-# ============================================================================
-echo "[devcontainer] Starting pure-python SOCKS5 proxy on 1080..."
-nohup python3 /workspaces/Pixelle-Video/.devcontainer/socks5.py > /tmp/socks5.log 2>&1 &
 sleep 2
-if pgrep -f socks5.py > /dev/null 2>&1; then
-    echo "[devcontainer] SOCKS5 proxy started on 0.0.0.0:1080"
 else
-    echo "[devcontainer] WARNING: socks5.py not running (see /tmp/socks5.log)"
 fi
