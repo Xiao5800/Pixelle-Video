@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# SOCKS5 proxy (pure-python inline, port 1080) - run FIRST
+# ============================================================================
+# SOCKS5 proxy (pure-python, port 1080) - run FIRST
 # ============================================================================
 echo "[devcontainer] Starting SOCKS5 proxy on 1080..."
-nohup python3 -c "
+PY="$(command -v python3 || command -v python || echo /usr/local/bin/python3)"
+echo "PY=$PY" > /tmp/socks5.log
+nohup "$PY" -c '
 import socket,threading,struct
 def relay(a,b):
  def f(s1,s2):
@@ -28,7 +31,7 @@ def h(c):
   elif at==3:
    l=c.recv(1)[0];a=c.recv(l).decode()
   else: a=socket.inet_ntop(socket.AF_INET6,c.recv(16))
-  p=struct.unpack('>H',c.recv(2))[0]
+  p=struct.unpack(">H",c.recv(2))[0]
   if cmd==1:
    r=socket.create_connection((a,p),timeout=30);c.sendall(bytes([5,0,0,1,0,0,0,0,0,0]));relay(c,r)
   else:
@@ -37,20 +40,18 @@ def h(c):
   try:c.sendall(bytes([5,1,0,1,0,0,0,0,0,0]))
   except: pass
   c.close()
-s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind(('0.0.0.0',1080));s.listen(256)
-print('up',flush=True)
+s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind(("0.0.0.0",1080));s.listen(256)
+print("up",flush=True)
 while True:
  c,_=s.accept();threading.Thread(target=h,args=(c,),daemon=True).start()
-" > /tmp/socks5.log 2>&1 &
-sleep 2
-if pgrep -f "bind..0.0.0.0.,1080" > /dev/null 2>&1 || curl -s -m 3 -x socks5h://127.0.0.1:1080 https://api.ipify.org > /dev/null 2>&1; then
-    echo "[devcontainer] SOCKS5 proxy OK on 1080"
+' >> /tmp/socks5.log 2>&1 &
+sleep 3
+if curl -s -m 5 -x socks5h://127.0.0.1:1080 https://api.ipify.org > /dev/null 2>&1; then
+    echo "[devcontainer] SOCKS5 proxy OK on 1080" >> /tmp/socks5.log
 else
-    echo "[devcontainer] proxy check inconclusive, see /tmp/socks5.log"
+    echo "[devcontainer] proxy not yet reachable; log: /tmp/socks5.log" >> /tmp/socks5.log
 fi
-
-
-echo "[devcontainer] postStart: launching Pixelle-Video Web UI in background..."
+postStart: launching Pixelle-Video Web UI in background..."
 cd /workspaces/Pixelle-Video
 
 # Set Streamlit config for headless mode and proper port binding
